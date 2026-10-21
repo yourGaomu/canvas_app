@@ -8,6 +8,11 @@ const config: CapacitorConfig = {
     loggingBehavior: "none",
     adjustMarginsForEdgeToEdge: "force",
   },
+  plugins: {
+    CapacitorHttp: {
+      enabled: true,
+    },
+  },
   server: {
     androidScheme: "https",
   },

@@ -49,7 +49,11 @@ export type GeneratedAsset = {
   url: string;
   model: string;
   prompt: string;
+  content?: string;
   createdAt: number;
+  inLibrary?: boolean;
+  storagePath?: string;
+  storageMimeType?: string;
 };
 
 export type MobileCanvasNode = {
@@ -81,6 +85,10 @@ export type MobileCanvasProject = {
   updatedAt: number;
   nodes: MobileCanvasNode[];
   connections: MobileCanvasConnection[];
+  collaboration?: {
+    roomId: string;
+    role: "owner" | "editor" | "readonly";
+  };
 };
 
 export type VideoTask = {

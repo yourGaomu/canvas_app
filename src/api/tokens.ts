@@ -2,7 +2,22 @@ import { apiRequest } from "./client";
 import type { ApiToken } from "../types";
 import { logger } from "../lib/logger";
 
-type TokenPage = { items?: ApiToken[]; data?: ApiToken[]; total?: number };
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function tokenRows(payload: unknown): unknown[] {
+  let current = payload;
+  for (let depth = 0; depth < 4; depth += 1) {
+    if (Array.isArray(current)) return current;
+    if (!isRecord(current)) return [];
+    const next = current.items || current.tokens || current.data || current.results;
+    if (Array.isArray(next)) return next;
+    if (!isRecord(next)) return [];
+    current = next;
+  }
+  return [];
+}
 
 function normalizeToken(value: ApiToken | Record<string, unknown>): ApiToken {
   const token = value as Record<string, unknown>;
@@ -28,9 +43,8 @@ function normalizeToken(value: ApiToken | Record<string, unknown>): ApiToken {
 }
 
 export async function listTokens(accessToken: string): Promise<ApiToken[]> {
-  const payload = await apiRequest<TokenPage | ApiToken[]>("/api/token/", { token: accessToken });
-  const items = Array.isArray(payload) ? payload : payload.items || payload.data || [];
-  const tokens = items.map(normalizeToken).filter((token) => token.id > 0);
+  const payload = await apiRequest<unknown>("/api/token/", { token: accessToken });
+  const tokens = tokenRows(payload).filter(isRecord).map(normalizeToken).filter((token) => token.id > 0);
   logger.info("token:list", { count: tokens.length, tokens: tokens.map((token) => ({ id: token.id, name: token.name, group: token.group, usable: token.usable })) });
   return tokens;
 }

@@ -73,14 +73,20 @@ App 不保存密码、总账户 Key 或任何上游供应商 Key。退出登录�
 - 如果 App 以独立 HTTPS 域名部署，New API 的 `SESSION_COOKIE_TRUSTED_URL` 需要加入该域名的精确 Origin；
 - 正确处理 `Authorization: Bearer <用户 Token>`；
 - 已配置模型价格、渠道和图片/视频路由；
-- 视频接口支持 `POST /v1/videos`、`GET /v1/videos/{id}` 和内容下载；
+- 视频接口支持 `POST /v1/videos`、`GET /v1/videos/{id}`；任务若返回直链则直接使用，否则再读取 `/v1/videos/{id}/content`；
 - 若登录刷新依赖 HttpOnly Cookie，需要在 Android/iOS 真机上验证 Cookie 持久化；否则 App 会在短期 access token 过期后要求重新登录。
 
 ## 当前界面
 
-- 创作：图片、图片编辑、视频和文本对话；
+- 创作：图片、图片编辑、视频和文本对话；素材页的“提示词库”可搜索、筛选提示词并填入创作输入框；
 - 画布：独立的本地画布项目，可从素材库主动选择图片、视频和文字加入；支持节点选择、拖动、多选、平移、连线，以及画布内生图/视频节点；生成结果进入素材库并作为连线结果节点加入当前画布；
 - 素材：本地图片、视频和对话记录；
 - 账户：额度、请求次数、Token 状态和退出登录。
 
-素材和画布项目目前彼此独立并只保存在设备本地，不包含云同步或服务器素材接口。素材库删除素材不会删除画布项目；画布移除节点也不会删除素材。
+个人画布和素材仍保存在设备本地，不包含素材云同步。素材库删除素材不会删除画布项目；画布移除节点也不会删除素材。
+
+## 多人协作接入
+
+移动端已预留 `Yjs + Hocuspocus Provider` 协作层。个人画布仍使用本地存储；点击“创建共享画布”或“加入协作”后，才会请求独立的 Go 协作 API，并通过 WebSocket 连接 Hocuspocus。后端实现请以 [`COLLABORATION_BACKEND_SPEC.md`](./COLLABORATION_BACKEND_SPEC.md) 为准，移动端字段摘要见 [`COLLABORATION_CONTRACT.md`](./COLLABORATION_CONTRACT.md)。
+
+当前版本同步节点、连线、文本、位置和在线拖动状态；图片、视频仍是本机素材，尚未实现共享素材上传。协作服务未部署或未配置时，不影响本地画布和 New API 生图功能。

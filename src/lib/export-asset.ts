@@ -1,5 +1,5 @@
 import { Capacitor } from "@capacitor/core";
-import { Directory, Filesystem } from "@capacitor/filesystem";
+import { Directory, Encoding, Filesystem } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 import { API_BASE_URL } from "../api/client";
 import type { GeneratedAsset } from "../types";
@@ -33,11 +33,23 @@ function getAssetHeaders(url: string, apiToken: string) {
   }
 }
 
+async function readStoredAsset(asset: GeneratedAsset) {
+  const { data } = await Filesystem.readFile({ path: asset.storagePath || "", directory: Directory.Data, ...(asset.kind === "text" ? { encoding: Encoding.UTF8 } : {}) });
+  if (data instanceof Blob) return data;
+  if (asset.kind === "text") return new Blob([data], { type: asset.storageMimeType || "text/plain" });
+  return (await fetch(`data:${asset.storageMimeType || "application/octet-stream"};base64,${data}`)).blob();
+}
+
 export async function exportAsset(asset: GeneratedAsset, apiToken = "") {
   const filename = `infinite-canvas-${asset.id.replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const assetUrl = getAssetUrl(asset.url);
   const headers = getAssetHeaders(assetUrl, apiToken);
   if (Capacitor.isNativePlatform()) {
+    if (asset.storagePath) {
+      const { uri } = await Filesystem.getUri({ path: asset.storagePath, directory: Directory.Data });
+      await Share.share({ title: filename, files: [uri], dialogTitle: "导出或保存素材" });
+      return;
+    }
     const dataMatch = assetUrl.match(/^data:([^;,]+)?;base64,(.+)$/);
     const mimeType = dataMatch?.[1] || (asset.kind === "video" ? "video/mp4" : asset.kind === "text" ? "text/plain" : "image/png");
     const path = `exports/${filename}.${getExtension(asset, mimeType)}`;
@@ -52,9 +64,9 @@ export async function exportAsset(asset: GeneratedAsset, apiToken = "") {
     return;
   }
 
-  const response = await fetch(assetUrl, { headers });
-  if (!response.ok) throw new Error(`下载失败：HTTP ${response.status}`);
-  const blob = await response.blob();
+  const response = asset.storagePath ? undefined : await fetch(assetUrl, { headers });
+  if (response && !response.ok) throw new Error(`下载失败：HTTP ${response.status}`);
+  const blob = asset.storagePath ? await readStoredAsset(asset) : await response!.blob();
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;

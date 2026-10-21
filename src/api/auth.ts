@@ -19,6 +19,7 @@ function parseUser(value: Record<string, unknown> | undefined): User {
     displayName: String(value?.display_name || value?.username || ""),
     email: String(value?.email || ""),
     group: String(value?.group || ""),
+    // New API quota is the remaining balance; used_quota is cumulative usage.
     quota: Number(value?.quota || 0),
     usedQuota: Number(value?.used_quota || 0),
     requestCount: Number(value?.request_count || 0),
@@ -49,13 +50,28 @@ export function fetchPublicStatus() {
   });
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 export async function fetchUserGroups(accessToken: string): Promise<TokenGroup[]> {
-  const payload = await apiRequest<Record<string, Record<string, unknown>>>("/api/user/self/groups", { token: accessToken });
-  const groups = Object.entries(payload)
+  const payload = await apiRequest<unknown>("/api/user/self/groups", { token: accessToken });
+  let current = payload;
+  for (let depth = 0; depth < 3 && isRecord(current); depth += 1) {
+    if (isRecord(current.groups) || Array.isArray(current.groups)) {
+      current = current.groups;
+      break;
+    }
+    if (!isRecord(current.data)) break;
+    current = current.data;
+  }
+  const groups = (Array.isArray(current)
+    ? current.map((value) => [isRecord(value) ? String(value.name || value.group || "") : String(value), value] as const)
+    : isRecord(current) ? Object.entries(current) : [])
     .map(([name, value]) => ({
       name,
-      description: String(value?.desc || ""),
-      ratio: String(value?.ratio ?? ""),
+      description: isRecord(value) ? String(value.desc || value.description || "") : "",
+      ratio: isRecord(value) ? String(value.ratio ?? "") : "",
     }))
     .filter((group) => group.name);
   logger.info("auth:user-groups", { groups: groups.map((group) => group.name), count: groups.length });

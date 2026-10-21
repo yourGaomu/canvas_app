@@ -17,10 +17,14 @@
     "@capacitor/filesystem": "^7.1.9",
     "@capacitor/preferences": "^7.0.2",
     "@capacitor/share": "^7.0.4",
+    "@hocuspocus/provider": "^4.7.1",
+    "@zip.js/zip.js": "^2.24.0",
     "capacitor-secure-storage-plugin": "^0.12.0",
+    "localforage": "^1.10.0",
     "lucide-react": "^0.468.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "yjs": "^13.6.33"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.3",

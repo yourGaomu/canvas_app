@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111510">
+  <title>Infinite Canvas · 移动端原型</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111510;
+      --panel: #191e18;
+      --panel-raised: #20271f;
+      --ink: #f1f2e9;
+      --muted: #899087;
+      --line: rgba(239, 244, 224, .11);
+      --acid: #d9f36b;
+      --coral: #ed8f78;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      background: #0b0d0a;
+      color: var(--ink);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; min-height: 100dvh; overflow: hidden; background: #0b0d0a; }
+    button, input, textarea { font: inherit; }
+    button { color: inherit; }
+    .app-shell { position: relative; isolation: isolate; display: flex; flex-direction: column; width: min(100%, 480px); height: 100dvh; min-height: 560px; margin: 0 auto; overflow: hidden; background: var(--bg); border-inline: 1px solid rgba(255,255,255,.04); }
+    .status-bar { z-index: 20; display: flex; height: calc(25px + var(--safe-top)); min-height: calc(25px + var(--safe-top)); align-items: end; justify-content: space-between; padding: 0 18px 4px; color: #e8ebe2; font: 600 11px/1 "Segoe UI", sans-serif; }
+    .status-icons { display: flex; align-items: center; gap: 5px; color: #e8ebe2; }
+    .signal { width: 14px; height: 10px; background: linear-gradient(to right, #e8ebe2 0 20%, transparent 20% 27%, #e8ebe2 27% 47%, transparent 47% 54%, #e8ebe2 54% 74%, transparent 74% 81%, #e8ebe2 81%); clip-path: polygon(0 100%, 0 75%, 25% 75%, 25% 50%, 50% 50%, 50% 25%, 75% 25%, 75% 0, 100% 0, 100% 100%); }
+    .battery { position: relative; width: 19px; height: 9px; border: 1px solid #e8ebe2; border-radius: 2px; }
+    .battery::before { position: absolute; top: 2px; right: -3px; width: 2px; height: 3px; background: #e8ebe2; content: ""; }
+    .battery::after { position: absolute; inset: 1px 4px 1px 1px; border-radius: 1px; background: var(--acid); content: ""; }
+    .topbar { z-index: 10; display: flex; height: 62px; min-height: 62px; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+    .icon-button { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; padding: 0; border: 0; border-radius: 9px; background: transparent; color: #b5bbae; cursor: pointer; }
+    .icon-button:hover, .icon-button:focus-visible { outline: 0; background: rgba(255,255,255,.07); color: var(--ink); }
+    .app-title { display: grid; min-width: 0; gap: 3px; }
+    .app-title small { color: #72796e; font: 9px/1.2 "Segoe UI", sans-serif; letter-spacing: .13em; }
+    .app-title strong { overflow: hidden; font: 500 17px/1.2 Georgia, serif; text-overflow: ellipsis; white-space: nowrap; }
+    .top-spacer { flex: 1; }
+    .avatar { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 10px; background: var(--acid); color: #1b2111; font-size: 12px; font-weight: 700; }
+    .view { position: relative; display: none; min-height: 0; flex: 1; overflow: auto; scrollbar-width: none; }
+    .view::-webkit-scrollbar { display: none; }
+    .view.is-active { display: flex; flex-direction: column; }
+    .canvas-toolbar-top { z-index: 4; display: flex; height: 55px; min-height: 55px; align-items: center; gap: 4px; padding: 0 10px; border-bottom: 1px solid rgba(255,255,255,.055); }
+    .canvas-name { display: grid; min-width: 0; gap: 3px; margin-left: 2px; }
+    .canvas-name strong { overflow: hidden; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .canvas-name small { color: var(--muted); font-size: 9px; }
+    .toolbar-divider { width: 1px; height: 24px; margin: 0 4px; background: var(--line); }
+    .canvas-board { position: relative; min-height: 0; flex: 1; margin: 0 10px 8px; overflow: hidden; border: 1px solid rgba(255,255,255,.09); border-radius: 8px; background-color: #151b15; background-image: radial-gradient(circle, rgba(217,243,107,.2) 1px, transparent 1.25px); background-position: 10px 10px; background-size: 22px 22px; touch-action: none; }
+    .canvas-board::after { position: absolute; z-index: 0; inset: 0; pointer-events: none; background: linear-gradient(135deg,rgba(10,13,10,.18),transparent 42%,rgba(10,13,10,.13)); content: ""; }
+    .connections { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+    .connections path { fill: none; stroke: rgba(224,237,183,.62); stroke-width: .28; vector-effect: non-scaling-stroke; }
+    .connections .active-link { stroke: var(--acid); stroke-width: .38; }
+    .node { position: absolute; z-index: 2; width: 112px; overflow: visible; border: 1px solid rgba(255,255,255,.16); border-radius: 6px; background: #20271f; box-shadow: 0 12px 30px rgba(0,0,0,.22); touch-action: none; cursor: grab; user-select: none; }
+    .node:active { cursor: grabbing; }
+    .node.selected { border-color: var(--acid); box-shadow: 0 0 0 1px rgba(217,243,107,.2),0 14px 34px rgba(0,0,0,.3); }
+    .node-photo { height: 94px; overflow: hidden; border-radius: 5px 5px 0 0; background: #384033; }
+    .node-photo img { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+    .node-meta { display: grid; gap: 4px; padding: 7px 8px 8px; }
+    .node-meta strong { overflow: hidden; font-size: 9px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .node-meta small { color: #a1a899; font-size: 8px; }
+    .node-type { display: flex; align-items: center; gap: 5px; color: var(--acid); font-size: 8px; font-weight: 700; }
+    .text-content { padding: 10px; color: #dfe6d6; font: 10px/1.45 Georgia, serif; }
+    .generator-node { width: 126px; padding: 10px; }
+    .generator-node p { margin: 9px 0; color: #c2cabb; font-size: 9px; line-height: 1.4; }
+    .generator-node .model-chip { display: flex; align-items: center; gap: 5px; padding-top: 7px; border-top: 1px solid var(--line); color: #a6afa0; font-size: 8px; }
+    .node-port { position: absolute; top: 50%; z-index: 3; width: 12px; height: 12px; border: 2px solid #273023; border-radius: 50%; background: var(--acid); box-shadow: 0 0 0 1px rgba(217,243,107,.7); transform: translateY(-50%); }
+    .node-port.out { right: -7px; }
+    .node-port.in { left: -7px; background: var(--coral); box-shadow: 0 0 0 1px rgba(237,143,120,.7); }
+    #node-ref-a { left: 7%; top: 13%; }
+    #node-text { left: 16%; top: 42%; width: 124px; }
+    #node-gen { left: 56%; top: 38%; }
+    #node-ref-b { left: 61%; top: 69%; }
+    .board-corner { position: absolute; z-index: 3; right: 10px; bottom: 10px; color: #899087; font: 9px/1 "Segoe UI", sans-serif; pointer-events: none; }
+    .board-tools { z-index: 5; display: flex; min-height: 66px; align-items: center; justify-content: space-around; gap: 1px; margin: 0 10px 8px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 8px; background: #171c16; }
+    .tool { display: grid; min-width: 39px; height: 52px; place-items: center; align-content: center; gap: 4px; padding: 0 4px; border: 0; border-radius: 6px; background: transparent; color: #929a8e; font-size: 8px; cursor: pointer; }
+    .tool svg { width: 16px; height: 16px; }
+    .tool.active { color: var(--acid); background: rgba(217,243,107,.085); }
+    .tool.fit { min-width: 44px; }
+    .immersive-tool { color: var(--acid); }
+    .bottom-nav { z-index: 8; display: grid; min-height: calc(61px + var(--safe-bottom)); flex: 0 0 calc(61px + var(--safe-bottom)); grid-template-columns: repeat(4,1fr); padding: 5px 8px max(5px,var(--safe-bottom)); border-top: 1px solid var(--line); background: rgba(17,21,16,.97); }
+    .bottom-nav button { display: grid; place-items: center; align-content: center; gap: 3px; border: 0; border-radius: 7px; background: transparent; color: #858d80; font-size: 9px; cursor: pointer; }
+    .bottom-nav button.active { color: var(--acid); background: rgba(217,243,107,.08); }
+    .bottom-nav svg { width: 18px; height: 18px; }
+    .page-content { width: 100%; max-width: 600px; margin: 0 auto; padding: 20px 18px calc(22px + var(--safe-bottom)); }
+    .page-kicker { margin: 0 0 7px; color: #818a7b; font: 9px/1.2 "Segoe UI",sans-serif; letter-spacing: .13em; }
+    .page-heading { margin: 0 0 18px; font: 500 25px/1.1 Georgia, serif; }
+    .form-label { display: block; margin: 17px 0 8px; color: #a9b0a2; font-size: 11px; }
+    .prompt-box { width: 100%; min-height: 126px; resize: vertical; padding: 15px; border: 1px solid var(--line); border-radius: 8px; outline: 0; background: var(--panel); color: var(--ink); font-size: 14px; line-height: 1.55; }
+    .prompt-box:focus { border-color: rgba(217,243,107,.65); }
+    .model-trigger { display: flex; width: 100%; min-height: 52px; align-items: center; gap: 11px; padding: 0 13px; border: 1px solid rgba(217,243,107,.32); border-radius: 7px; background: #191e18; text-align: left; cursor: pointer; }
+    .model-mark { display: grid; width: 28px; height: 28px; flex: 0 0 28px; place-items: center; border-radius: 7px; background: #283024; color: var(--acid); font-size: 12px; font-weight: 700; }
+    .model-trigger-copy { display: grid; flex: 1; gap: 3px; }
+    .model-trigger-copy strong { font-size: 12px; font-weight: 600; }
+    .model-trigger-copy small { color: var(--muted); font-size: 9px; }
+    .disclosure { color: #8d9587; }
+    .settings-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .setting-control { display: flex; min-height: 44px; align-items: center; justify-content: space-between; padding: 0 11px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: #dce0d5; font-size: 11px; }
+    .reference-row { display: flex; gap: 8px; margin-top: 9px; }
+    .reference-thumb { display: grid; width: 52px; height: 52px; place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 6px; background: #263023; color: var(--acid); }
+    .reference-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .reference-add { border: 1px dashed rgba(255,255,255,.22); background: transparent; color: #a8b0a2; cursor: pointer; }
+    .generate-button { display: flex; width: 100%; min-height: 48px; align-items: center; justify-content: center; gap: 8px; margin-top: 20px; border: 0; border-radius: 6px; background: var(--acid); color: #1b2017; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .notice { margin-top: 11px; color: #879081; font-size: 10px; line-height: 1.5; }
+    .picker-scrim { position: fixed; z-index: 40; inset: 0; display: none; align-items: end; justify-content: center; background: rgba(0,0,0,.64); backdrop-filter: blur(7px); }
+    .picker-scrim.open { display: flex; }
+    .model-sheet { width: min(100%,480px); max-height: min(76dvh,690px); overflow: hidden; border: 1px solid rgba(255,255,255,.12); border-bottom: 0; border-radius: 15px 15px 0 0; background: #1b201a; box-shadow: 0 -20px 70px rgba(0,0,0,.4); animation: sheet-in .22s ease-out; }
+    @keyframes sheet-in { from { transform: translateY(20px); opacity: .6; } to { transform: translateY(0); opacity: 1; } }
+    .sheet-grab { width: 34px; height: 3px; margin: 9px auto 7px; border-radius: 2px; background: #4d554a; }
+    .sheet-header { display: flex; align-items: center; justify-content: space-between; padding: 9px 17px 13px; }
+    .sheet-header div { display: grid; gap: 4px; }
+    .sheet-header small { color: #848c7d; font-size: 9px; letter-spacing: .1em; }
+    .sheet-header strong { font: 500 19px/1.1 Georgia,serif; }
+    .sheet-close { display: grid; width: 32px; height: 32px; place-items: center; border: 0; border-radius: 8px; background: rgba(255,255,255,.06); color: #afb6a9; cursor: pointer; }
+    .model-search { display: flex; height: 41px; align-items: center; gap: 8px; margin: 0 15px 11px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: #141812; color: #8c9587; }
+    .model-search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 11px; }
+    .model-filter { display: flex; gap: 6px; padding: 0 15px 11px; overflow-x: auto; }
+    .filter-button { min-height: 29px; padding: 0 10px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: #9ca496; font-size: 9px; white-space: nowrap; cursor: pointer; }
+    .filter-button.active { border-color: rgba(217,243,107,.25); background: rgba(217,243,107,.08); color: var(--acid); }
+    .model-list { max-height: min(43dvh,390px); overflow: auto; padding: 0 9px 7px; }
+    .model-option { display: grid; width: 100%; grid-template-columns: 34px minmax(0,1fr) auto; align-items: center; gap: 10px; padding: 10px 9px; border: 1px solid transparent; border-radius: 7px; background: transparent; text-align: left; cursor: pointer; }
+    .model-option:hover { background: rgba(255,255,255,.035); }
+    .model-option.selected { border-color: rgba(217,243,107,.24); background: rgba(217,243,107,.065); }
+    .provider-icon { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 7px; background: #293126; color: #d4d9ca; font-size: 12px; font-weight: 700; }
+    .provider-icon.gemini { background: #252e34; color: #95c9de; }
+    .provider-icon.grok { background: #2e2926; color: #e5a98e; }
+    .model-option-copy { display: grid; min-width: 0; gap: 4px; }
+    .model-option-copy strong { overflow: hidden; color: #e9ede3; font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .model-option-copy small { color: #899183; font-size: 9px; }
+    .model-status { display: flex; align-items: center; gap: 5px; color: #91998c; font-size: 8px; white-space: nowrap; }
+    .model-status i { width: 6px; height: 6px; border-radius: 50%; background: #8ecb91; }
+    .radio { display: grid; width: 16px; height: 16px; place-items: center; border: 1px solid #697164; border-radius: 50%; }
+    .selected .radio { border-color: var(--acid); }
+    .selected .radio::after { width: 8px; height: 8px; border-radius: 50%; background: var(--acid); content: ""; }
+    .sheet-footer { display: flex; align-items: center; justify-content: space-between; padding: 11px 16px calc(13px + var(--safe-bottom)); border-top: 1px solid var(--line); color: #879081; font-size: 9px; }
+    .sheet-footer strong { color: #d6dbcE; font-weight: 500; }
+    .toast { position: fixed; z-index: 60; bottom: calc(76px + var(--safe-bottom)); left: 50%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 6px; background: #242c22; color: #e7eddf; font-size: 10px; opacity: 0; pointer-events: none; transform: translate(-50%,8px); transition: .2s ease; white-space: nowrap; }
+    .toast.show { opacity: 1; transform: translate(-50%,0); }
+    .system-nav { z-index: 30; display: none; }
+    .immersive-hint { position: fixed; z-index: 14; top: calc(12px + var(--safe-top)); right: calc(12px + var(--safe-right,0px)); display: none; align-items: center; gap: 7px; padding: 8px 10px; border: 1px solid rgba(255,255,255,.12); border-radius: 6px; background: rgba(19,24,18,.82); color: #cbd1c3; font-size: 9px; backdrop-filter: blur(12px); }
+    .immersive-hint button { display: flex; min-height: 26px; align-items: center; justify-content: center; padding: 0 8px; border: 1px solid rgba(217,243,107,.27); border-radius: 5px; background: rgba(217,243,107,.08); color: var(--acid); font-size: 9px; cursor: pointer; }
+    .app-shell.immersive .status-bar, .app-shell.immersive .topbar, .app-shell.immersive .bottom-nav { display: none; }
+    .app-shell.immersive .view { display: none; }
+    .app-shell.immersive #canvasView { display: flex; flex: 1; padding: 8px; }
+    .app-shell.immersive .canvas-toolbar-top { position: absolute; top: 8px; left: 8px; width: auto; height: 44px; min-height: 44px; border: 1px solid rgba(255,255,255,.11); border-radius: 7px; background: rgba(19,24,18,.83); backdrop-filter: blur(12px); }
+    .app-shell.immersive .canvas-board { position: absolute; inset: 8px 8px 69px; margin: 0; border-radius: 8px; }
+    .app-shell.immersive .board-tools { position: absolute; right: 12px; bottom: 12px; left: 12px; justify-content: center; gap: 8px; min-height: 51px; margin: 0; padding: 3px 9px; background: rgba(22,27,21,.87); backdrop-filter: blur(14px); }
+    .app-shell.immersive .tool { min-width: 48px; height: 43px; }
+    .app-shell.immersive .immersive-hint { display: flex; }
+    .app-shell.immersive .node { width: 152px; }
+    .app-shell.immersive .node-photo { height: 110px; }
+    .app-shell.immersive .generator-node { width: 165px; }
+    .app-shell.immersive .text-content { font-size: 13px; }
+    .app-shell.immersive .node-meta strong { font-size: 10px; }
+    html.immersive-mode { overflow: hidden; }
+    @media (orientation: portrait) and (max-width: 900px) {
+      html.immersive-mode #appShell { position: fixed; top: 0; left: 0; width: 100dvh; height: 100vw; min-height: 0; max-width: none; margin: 0; border: 0; transform: rotate(90deg) translateY(-100%); transform-origin: top left; }
+    }
+    @media (orientation: landscape) and (max-width: 900px) {
+      .app-shell { width: 100%; max-width: none; }
+      .app-shell.immersive #canvasView { display: flex; }
+    }
+    @media (min-width: 700px) {
+      body { display: grid; place-items: center; background: radial-gradient(ellipse at center,#252a22 0,#10130f 64%); }
+      .app-shell { height: min(900px,100dvh); border-inline: 1px solid rgba(255,255,255,.08); box-shadow: 0 20px 100px rgba(0,0,0,.48); }
+      html.immersive-mode body { display: block; }
+      html.immersive-mode #appShell { width: 100vw; height: 100dvh; max-width: none; border: 0; border-radius: 0; }
+    }
+    @media (max-height: 680px) and (orientation: portrait) {
+      .status-bar { height: calc(21px + var(--safe-top)); min-height: calc(21px + var(--safe-top)); }
+      .topbar { height: 54px; min-height: 54px; }
+      .canvas-toolbar-top { height: 48px; min-height: 48px; }
+      .board-tools { min-height: 58px; }
+    }
+  </style>
+</head>
+<body>
+  <main id="appShell" class="app-shell">
+    <div class="status-bar"><span>9:41</span><div class="status-icons"><span style="font-size:9px">VPN</span><span class="signal"></span><span style="font-size:10px">5G</span><span class="battery"></span></div></div>
+    <header class="topbar">
+      <button class="icon-button" aria-label="打开菜单" title="菜单"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <div class="app-title"><small id="topKicker">INFINITE SPACE</small><strong id="topTitle">我的画布</strong></div>
+      <span class="top-spacer"></span>
+      <div class="avatar">J</div>
+    </header>
+
+    <section class="view is-active" id="canvasView" aria-label="画布">
+      <div class="canvas-toolbar-top">
+        <button class="icon-button" aria-label="返回画布列表" title="返回"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m14 5-7 7 7 7M7 12h13"/></svg></button>
+        <div class="canvas-name"><strong>无限画布 1</strong><small><span id="nodeCount">4</span> 个节点 · <span id="linkCount">3</span> 连线</small></div>
+        <span class="top-spacer"></span>
+        <button class="icon-button" aria-label="节点列表" title="节点列表" data-toast="节点列表"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" stroke-linecap="round"/></svg></button>
+        <button class="icon-button" aria-label="导出画布" title="导出画布" data-toast="导出画布"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v3h14v-3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <span class="toolbar-divider"></span>
+        <button class="icon-button immersive-tool" id="immersiveButton" aria-label="进入横屏沉浸模式" title="横屏沉浸"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 4H5a1 1 0 0 0-1 1v3m12-4h3a1 1 0 0 1 1 1v3M4 16v3a1 1 0 0 0 1 1h3m12-4v3a1 1 0 0 1-1 1h-3" stroke-linecap="round"/><path d="M9 9h6v6H9z"/></svg></button>
+      </div>
+
+      <div class="canvas-board" id="canvasBoard" aria-label="可拖动节点画布">
+        <svg class="connections" id="connections" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <path data-from="node-ref-a" data-to="node-gen"></path>
+          <path class="active-link" data-from="node-text" data-to="node-gen"></path>
+          <path data-from="node-gen" data-to="node-ref-b"></path>
+        </svg>
+        <article class="node" id="node-ref-a" data-node="true" aria-label="图片素材"><div class="node-photo"><img src="https://images.unsplash.com/photo-1543852786-1cf6624b9987?auto=format&fit=crop&w=440&q=80" alt="猫咪参考图"></div><div class="node-meta"><strong>猫咪参考图</strong><small>图片 · 导入素材</small></div><i class="node-port out"></i></article>
+        <article class="node" id="node-text" data-node="true" aria-label="文字提示词"><i class="node-port out"></i><div class="text-content">柔和的清晨光线，干净的浅色背景，保留猫咪自然的神态。</div><div class="node-meta"><span class="node-type">Aa <span>文字提示词</span></span></div></article>
+        <article class="node generator-node selected" id="node-gen" data-node="true" aria-label="图片生成节点"><i class="node-port in"></i><i class="node-port out"></i><span class="node-type"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 1.9 5.8L20 11l-6.1 2.2L12 19l-2-5.8L4 11l6-2.2L12 3Z"/><path d="m19 15 .9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15Z"/></svg>生图节点</span><p>将参考素材融合为一张自然、有层次的肖像。</p><div class="model-chip">◉ <span>gpt-image-2</span></div></article>
+        <article class="node" id="node-ref-b" data-node="true" aria-label="生成结果"><i class="node-port in"></i><div class="node-photo"><img src="https://images.unsplash.com/photo-1533738363-b7f9aef128ce?auto=format&fit=crop&w=440&q=80" alt="生成的猫咪图片"></div><div class="node-meta"><strong>生成结果 · 1</strong><small>刚刚生成</small></div></article>
+        <span class="board-corner">4 节点 · 3 连线</span>
+      </div>
+
+      <div class="board-tools" aria-label="画布工具">
+        <button class="tool active" data-tool="选择" title="选择节点"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 3 14 10-7 1-3 6L5 3Z" stroke-linejoin="round"/></svg><span>选择</span></button>
+        <button class="tool" data-tool="平移" title="平移画布"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 11V5a1.5 1.5 0 0 1 3 0v5-7a1.5 1.5 0 0 1 3 0v7-5a1.5 1.5 0 0 1 3 0v7-3a1.5 1.5 0 0 1 3 0v6c0 4-2.5 7-7 7h-1c-2 0-3.5-.8-5-2.5L4 15a1.5 1.5 0 0 1 2-2l2 2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>平移</span></button>
+        <button class="tool" title="撤销" data-toast="已撤销"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 14 4 9l5-5M4 9h9a7 7 0 1 1 0 14h-2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>撤销</span></button>
+        <button class="tool" title="缩小" data-zoom="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M7.5 10.5h6" stroke-linecap="round"/></svg><span>缩小</span></button>
+        <button class="tool" title="放大" data-zoom="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M7.5 10.5h6m-3-3v6" stroke-linecap="round"/></svg><span>放大</span></button>
+        <button class="tool fit" id="fitButton" title="适配全部节点"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 3H5a2 2 0 0 0-2 2v3m13-5h3a2 2 0 0 1 2 2v3M3 16v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3" stroke-linecap="round"/><path d="M9 9h6v6H9z"/></svg><span>全景</span></button>
+        <button class="tool immersive-tool" id="immersiveButtonBottom" title="横屏沉浸"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 4H5a1 1 0 0 0-1 1v3m12-4h3a1 1 0 0 1 1 1v3M4 16v3a1 1 0 0 0 1 1h3m12-4v3a1 1 0 0 1-1 1h-3" stroke-linecap="round"/><path d="M8 8h8v8H8z"/></svg><span>横屏</span></button>
+      </div>
+    </section>
+
+    <section class="view" id="createView" aria-label="创作">
+      <div class="page-content">
+        <p class="page-kicker">CREATE / IMAGE</p><h1 class="page-heading">让想象落地。</h1>
+        <label class="form-label" for="prompt">描述你的想法</label>
+        <textarea id="prompt" class="prompt-box" placeholder="例如：一只坐在窗边的猫，清晨柔和的光线……">一只在窗边的猫，自然的晨光，轻柔的颗粒质感。</textarea>
+        <label class="form-label">生成模型</label>
+        <button class="model-trigger" id="modelTrigger" aria-haspopup="dialog" aria-expanded="false">
+          <span class="model-mark" id="currentModelMark">G</span><span class="model-trigger-copy"><strong id="currentModel">gpt-image-2</strong><small id="currentProvider">OpenAI · 图片生成</small></span>
+          <svg class="disclosure" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <label class="form-label">画幅 · 质量</label>
+        <div class="settings-row"><button class="setting-control" data-toast="画幅选项"><span>1:1 方形</span><span class="disclosure">⌄</span></button><button class="setting-control" data-toast="质量选项"><span>自动质量</span><span class="disclosure">⌄</span></button></div>
+        <label class="form-label">参考图片</label>
+        <div class="reference-row"><div class="reference-thumb"><img src="https://images.unsplash.com/photo-1543852786-1cf6624b9987?auto=format&fit=crop&w=160&q=70" alt="猫咪参考图"></div><button class="reference-thumb reference-add" aria-label="添加参考图片">＋</button></div>
+        <button class="generate-button" id="generateButton"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m12 3 1.9 5.8L20 11l-6.1 2.2L12 19l-2-5.8L4 11l6-2.2L12 3Z"/><path d="m19 15 .9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15Z"/></svg>生成图片</button>
+        <p class="notice">图片将保存到你的素材库，可以继续拖入画布编排。</p>
+      </div>
+    </section>
+
+    <section class="view" id="assetsView" aria-label="素材"><div class="page-content"><p class="page-kicker">LIBRARY / 12 ITEMS</p><h1 class="page-heading">你的素材。</h1><p class="notice">图片、视频与提示词集中管理，随时加入画布。</p></div></section>
+    <section class="view" id="accountView" aria-label="账户"><div class="page-content"><p class="page-kicker">ACCOUNT / NEW API</p><h1 class="page-heading">你的工作台账户。</h1><div class="setting-control"><span>API 状态</span><strong style="color:var(--acid)">● 已连接</strong></div></div></section>
+
+    <nav class="bottom-nav" aria-label="主导航">
+      <button data-view="createView"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m12 3 1.9 5.8L20 11l-6.1 2.2L12 19l-2-5.8L4 11l6-2.2L12 3Z"/></svg><span>创作</span></button>
+      <button class="active" data-view="canvasView"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 8h.01M16 8h.01M8 16h.01M16 16h.01" stroke-linecap="round"/></svg><span>画布</span></button>
+      <button data-view="assetsView"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg><span>素材</span></button>
+      <button data-view="accountView"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span>账户</span></button>
+    </nav>
+    <div class="immersive-hint"><span>横屏沉浸模式</span><button id="exitImmersive" aria-label="退出横屏">退出横屏</button></div>
+  </main>
+
+  <div class="picker-scrim" id="pickerScrim" role="presentation">
+    <section class="model-sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+      <div class="sheet-grab"></div>
+      <div class="sheet-header"><div><small>MODEL SELECTOR</small><strong id="sheetTitle">选择生成模型</strong></div><button class="sheet-close" id="closeSheet" aria-label="关闭">×</button></div>
+      <label class="model-search"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg><input id="modelSearch" placeholder="搜索模型名称" autocomplete="off"></label>
+      <div class="model-filter" role="tablist" aria-label="模型类型"><button class="filter-button active" data-filter="all">全部模型</button><button class="filter-button" data-filter="image">图片</button><button class="filter-button" data-filter="video">视频</button><button class="filter-button" data-filter="text">对话</button></div>
+      <div class="model-list" id="modelList">
+        <button class="model-option selected" data-model="gpt-image-2" data-provider="OpenAI" data-kind="image"><span class="provider-icon">G</span><span class="model-option-copy"><strong>gpt-image-2</strong><small>细节出色 · 支持图片编辑</small></span><span class="model-status"><i></i>可用</span><span class="radio"></span></button>
+        <button class="model-option" data-model="gemini-2.5-flash-image" data-provider="Google Gemini" data-kind="image"><span class="provider-icon gemini">✦</span><span class="model-option-copy"><strong>gemini-2.5-flash-image</strong><small>快速生成 · 多图参考</small></span><span class="model-status"><i></i>可用</span><span class="radio"></span></button>
+        <button class="model-option" data-model="grok-imagine-image" data-provider="xAI Grok" data-kind="image"><span class="provider-icon grok">X</span><span class="model-option-copy"><strong>grok-imagine-image</strong><small>风格探索 · 图片生成</small></span><span class="model-status"><i></i>可用</span><span class="radio"></span></button>
+        <button class="model-option" data-model="sora-2" data-provider="OpenAI" data-kind="video"><span class="provider-icon">S</span><span class="model-option-copy"><strong>sora-2</strong><small>视频生成 · 任务进度</small></span><span class="model-status"><i></i>可用</span><span class="radio"></span></button>
+        <button class="model-option" data-model="gpt-4.1" data-provider="OpenAI" data-kind="text"><span class="provider-icon">G</span><span class="model-option-copy"><strong>gpt-4.1</strong><small>通用对话 · 长文本理解</small></span><span class="model-status"><i></i>可用</span><span class="radio"></span></button>
+      </div>
+      <footer class="sheet-footer"><span>当前模型</span><strong id="sheetCurrent">gpt-image-2</strong></footer>
+    </section>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    const shell = document.getElementById('appShell');
+    const canvas = document.getElementById('canvasBoard');
+    const paths = [...document.querySelectorAll('.connections path')];
+    const toast = document.getElementById('toast');
+    let toastTimer;
+    let zoom = 1;
+    let selectedModel = 'gpt-image-2';
+
+    function drawConnections() {
+      const board = canvas.getBoundingClientRect();
+      paths.forEach((path) => {
+        const from = document.getElementById(path.dataset.from).getBoundingClientRect();
+        const to = document.getElementById(path.dataset.to).getBoundingClientRect();
+        const x1 = ((from.right - board.left) / board.width) * 100;
+        const y1 = ((from.top + from.height / 2 - board.top) / board.height) * 100;
+        const x2 = ((to.left - board.left) / board.width) * 100;
+        const y2 = ((to.top + to.height / 2 - board.top) / board.height) * 100;
+        const bend = Math.max(6, Math.abs(x2 - x1) * .42);
+        path.setAttribute('d', `M ${x1} ${y1} C ${x1 + bend} ${y1}, ${x2 - bend} ${y2}, ${x2} ${y2}`);
+      });
+    }
+    window.addEventListener('resize', drawConnections);
+    window.addEventListener('orientationchange', () => setTimeout(drawConnections, 200));
+    requestAnimationFrame(drawConnections);
+
+    document.querySelectorAll('[data-node="true"]').forEach((node) => {
+      let drag = null;
+      node.addEventListener('pointerdown', (event) => {
+        if (event.target.closest('.node-port')) return;
+        drag = { x: event.clientX, y: event.clientY, left: node.offsetLeft, top: node.offsetTop };
+        node.setPointerCapture(event.pointerId);
+        node.classList.add('selected');
+        document.querySelectorAll('.node').forEach((item) => { if (item !== node) item.classList.remove('selected'); });
+      });
+      node.addEventListener('pointermove', (event) => {
+        if (!drag) return;
+        const rotated = shell.classList.contains('immersive') && matchMedia('(orientation: portrait) and (max-width: 900px)').matches;
+        const scale = rotated ? innerHeight / innerWidth : 1;
+        const deltaX = rotated ? (event.clientY - drag.y) * scale : event.clientX - drag.x;
+        const deltaY = rotated ? -(event.clientX - drag.x) * scale : event.clientY - drag.y;
+        node.style.left = `${Math.max(0, Math.min(canvas.clientWidth - node.offsetWidth, drag.left + deltaX))}px`;
+        node.style.top = `${Math.max(0, Math.min(canvas.clientHeight - node.offsetHeight, drag.top + deltaY))}px`;
+        drawConnections();
+      });
+      const endDrag = () => { drag = null; };
+      node.addEventListener('pointerup', endDrag);
+      node.addEventListener('pointercancel', endDrag);
+    });
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 1500);
+    }
+    document.querySelectorAll('[data-toast]').forEach((button) => button.addEventListener('click', () => showToast(button.dataset.toast)));
+    document.querySelectorAll('.tool[data-tool]').forEach((button) => button.addEventListener('click', () => {
+      document.querySelectorAll('.tool[data-tool]').forEach((item) => item.classList.toggle('active', item === button));
+      showToast(`已切换到${button.dataset.tool}工具`);
+    }));
+    document.querySelectorAll('[data-zoom]').forEach((button) => button.addEventListener('click', () => {
+      zoom = Math.max(.35, Math.min(2.5, zoom * (button.dataset.zoom === '1' ? 1.15 : 1 / 1.15)));
+      canvas.style.backgroundSize = `${22 * zoom}px ${22 * zoom}px`;
+      showToast(`画布缩放 ${Math.round(zoom * 100)}%`);
+    }));
+    document.getElementById('fitButton').addEventListener('click', () => { zoom = 1; canvas.style.backgroundSize = '22px 22px'; showToast('已适配全部节点'); });
+
+    const picker = document.getElementById('pickerScrim');
+    const trigger = document.getElementById('modelTrigger');
+    function openPicker() { picker.classList.add('open'); trigger?.setAttribute('aria-expanded', 'true'); document.getElementById('modelSearch').focus({ preventScroll: true }); }
+    function closePicker() { picker.classList.remove('open'); trigger?.setAttribute('aria-expanded', 'false'); }
+    trigger.addEventListener('click', openPicker);
+    document.getElementById('closeSheet').addEventListener('click', closePicker);
+    picker.addEventListener('pointerdown', (event) => { if (event.target === picker) closePicker(); });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { closePicker(); if (shell.classList.contains('immersive')) exitImmersive(); } });
+    document.getElementById('modelSearch').addEventListener('input', (event) => filterModels(event.target.value));
+    let activeFilter = 'all';
+    function filterModels(query = document.getElementById('modelSearch').value) {
+      document.querySelectorAll('.model-option').forEach((option) => {
+        const matchesQuery = option.dataset.model.toLowerCase().includes(query.toLowerCase()) || option.dataset.provider.toLowerCase().includes(query.toLowerCase());
+        option.hidden = !matchesQuery || (activeFilter !== 'all' && option.dataset.kind !== activeFilter);
+      });
+    }
+    document.querySelectorAll('.filter-button').forEach((button) => button.addEventListener('click', () => {
+      activeFilter = button.dataset.filter;
+      document.querySelectorAll('.filter-button').forEach((item) => item.classList.toggle('active', item === button));
+      filterModels();
+    }));
+    document.querySelectorAll('.model-option').forEach((option) => option.addEventListener('click', () => {
+      selectedModel = option.dataset.model;
+      document.querySelectorAll('.model-option').forEach((item) => item.classList.toggle('selected', item === option));
+      document.getElementById('currentModel').textContent = selectedModel;
+      document.getElementById('currentProvider').textContent = `${option.dataset.provider} · ${option.dataset.kind === 'image' ? '图片生成' : option.dataset.kind === 'video' ? '视频生成' : '文字对话'}`;
+      document.getElementById('currentModelMark').textContent = option.querySelector('.provider-icon').textContent.trim();
+      document.getElementById('sheetCurrent').textContent = selectedModel;
+      const chip = document.querySelector('#node-gen .model-chip span');
+      if (chip) chip.textContent = selectedModel;
+      closePicker();
+      showToast(`已选择 ${selectedModel}`);
+    }));
+
+    document.querySelectorAll('.bottom-nav button').forEach((button) => button.addEventListener('click', () => {
+      const viewId = button.dataset.view;
+      document.querySelectorAll('.view').forEach((view) => view.classList.toggle('is-active', view.id === viewId));
+      document.querySelectorAll('.bottom-nav button').forEach((item) => item.classList.toggle('active', item === button));
+      const titles = { createView: ['WORKSPACE', '新建创作'], canvasView: ['INFINITE SPACE', '我的画布'], assetsView: ['LIBRARY', '我的素材'], accountView: ['ACCOUNT', '账户'] };
+      document.getElementById('topKicker').textContent = titles[viewId][0];
+      document.getElementById('topTitle').textContent = titles[viewId][1];
+    }));
+    document.getElementById('generateButton').addEventListener('click', () => showToast(`已开始使用 ${selectedModel}`));
+
+    async function enterImmersive() {
+      try { if (!document.fullscreenElement) await shell.requestFullscreen?.(); } catch (_) { /* Browser may not allow fullscreen from a local file. */ }
+      shell.classList.add('immersive');
+      document.documentElement.classList.add('immersive-mode');
+      document.getElementById('immersiveButton').setAttribute('aria-label', '退出横屏沉浸模式');
+      try { await screen.orientation?.lock?.('landscape'); } catch (_) { /* CSS rotation is the prototype fallback. */ }
+      showToast('横屏沉浸模式 · 再次点击退出');
+      setTimeout(drawConnections, 80);
+    }
+    async function exitImmersive() {
+      shell.classList.remove('immersive');
+      document.documentElement.classList.remove('immersive-mode');
+      document.getElementById('immersiveButton').setAttribute('aria-label', '进入横屏沉浸模式');
+      try { screen.orientation?.unlock?.(); } catch (_) { /* No orientation lock to release. */ }
+      try { if (document.fullscreenElement) await document.exitFullscreen(); } catch (_) { /* The browser may already have exited. */ }
+      setTimeout(drawConnections, 80);
+    }
+    document.getElementById('immersiveButton').addEventListener('click', enterImmersive);
+    document.getElementById('immersiveButtonBottom').addEventListener('click', enterImmersive);
+    document.getElementById('exitImmersive').addEventListener('click', exitImmersive);
+    document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && shell.classList.contains('immersive')) exitImmersive(); });
+  </script>
+</body>
+</html>

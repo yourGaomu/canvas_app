@@ -162,9 +162,9 @@ mobile-app/
 | 文本对话 | `POST /v1/chat/completions` | 支持流式和非流式 |
 | 图片生成 | `POST /v1/images/generations` | JSON 请求 |
 | 图片编辑 | `POST /v1/images/edits` | multipart/form-data |
-| 创建视频 | `POST /v1/videos` | multipart/form-data，返回任务 ID |
+| 创建视频 | `POST /v1/videos` | multipart/form-data，参考图片使用单个二进制 `input_reference` 字段，返回任务 ID |
 | 查询视频 | `GET /v1/videos/{id}` | 轮询任务状态 |
-| 下载视频 | `GET /v1/videos/{id}/content` | 任务完成后下载 |
+| 下载视频 | `GET /v1/videos/{id}/content` | 任务未返回直链时，完成后下载 |
 
 App 不直接请求 `/v1beta`、官方 OpenAI 地址或任何上游渠道地址。需要 Gemini、OpenAI 兼容模型或其他渠道时，统一由 New API 的渠道配置完成路由。
 

@@ -12,6 +12,7 @@ export default defineConfig({
       "/v1beta": { target: "https://mikasa.icu", changeOrigin: true, secure: true },
       "/kling": { target: "https://mikasa.icu", changeOrigin: true, secure: true },
       "/jimeng": { target: "https://mikasa.icu", changeOrigin: true, secure: true },
+      "/collab-api": { target: "http://localhost:8080", changeOrigin: true, secure: false },
     },
   },
   build: { target: "es2022" },
