@@ -7,19 +7,29 @@ function isGenerationNode(node: MobileCanvasNode) {
 }
 
 function getResourceKind(node: MobileCanvasNode, assetsById: Map<string, GeneratedAsset>): ResourceKind | null {
-  if (node.type === "text") return "text";
+  if (node.type === "text") return node.prompt?.trim() ? "text" : null;
   if (!node.assetId || !["asset", "image-generation", "video-generation"].includes(node.type)) return null;
-  return assetsById.get(node.assetId)?.kind || null;
+  const assetIds = node.assetIds?.length ? node.assetIds : [node.assetId];
+  const assets = assetIds.map((id) => assetsById.get(id));
+  if (assets.some((asset) => !asset)) return null;
+  const kind = assetsById.get(node.assetId)?.kind;
+  if (!kind || assets.some((asset) => asset?.kind !== kind) || kind === "image" && assets.some((asset) => !asset?.url)) return null;
+  if (kind === "text" && assets.some((asset) => !asset?.content?.trim())) return null;
+  return kind;
 }
 
 function getGroupResources(group: MobileCanvasNode, nodes: MobileCanvasNode[], assetsById: Map<string, GeneratedAsset>) {
   return nodes.filter((node) => node.groupId === group.id && getResourceKind(node, assetsById) !== null);
 }
 
+function hasInvalidGroupResource(group: MobileCanvasNode, nodes: MobileCanvasNode[], assetsById: Map<string, GeneratedAsset>) {
+  return nodes.some((node) => node.groupId === group.id && (node.type === "text" || node.type === "asset" || isGenerationNode(node) && Boolean(node.assetId)) && getResourceKind(node, assetsById) === null);
+}
+
 export function canProvideGenerationInput(node: MobileCanvasNode, nodes: MobileCanvasNode[], assetsById: Map<string, GeneratedAsset>) {
   if (node.type === "group") {
     const resources = getGroupResources(node, nodes, assetsById);
-    return resources.length > 0 && resources.every((resource) => getResourceKind(resource, assetsById) !== "video");
+    return resources.length > 0 && !hasInvalidGroupResource(node, nodes, assetsById) && resources.every((resource) => getResourceKind(resource, assetsById) !== "video");
   }
   const kind = getResourceKind(node, assetsById);
   return kind !== null && kind !== "video";
@@ -32,13 +42,14 @@ export function getConnectionError(fromNodeId: string, toNodeId: string, nodes: 
   if (from.id === to.id) return "节点不能连接到自身";
   if (!isGenerationNode(to)) return "输入只能连接到生图或视频生成节点";
   if (from.type === "group") {
+    if (hasInvalidGroupResource(from, nodes, assetsById)) return "分组中包含空文字或无法读取的素材";
     const resources = getGroupResources(from, nodes, assetsById);
     if (!resources.length) return "分组中没有可用的文字或图片输入";
     if (resources.some((resource) => getResourceKind(resource, assetsById) === "video")) return "当前接口暂不支持视频素材作为生成输入";
     return null;
   }
   const kind = getResourceKind(from, assetsById);
-  if (!kind) return "只有文字节点或已生成的素材可以作为输入";
+  if (!kind) return from.type === "text" ? "文字节点内容为空" : from.type === "asset" ? "素材不存在或无法读取" : "生成节点尚无可用输出";
   if (kind === "video") return "当前接口暂不支持视频素材作为生成输入";
   return null;
 }
@@ -64,7 +75,7 @@ export function buildGenerationInputs(nodeId: string, prompt: string, nodes: Mob
   const upstreamText = resources.flatMap((node) => {
     if (node.type === "text") return [node.prompt?.trim() || ""];
     const asset = node.assetId ? assetsById.get(node.assetId) : undefined;
-    return asset?.kind === "text" ? [asset.prompt.trim()] : [];
+    return asset?.kind === "text" ? [asset.content?.trim() || ""] : [];
   }).filter(Boolean);
   const assetIds = resources.flatMap((node) => node.assetIds?.length ? node.assetIds : node.assetId ? [node.assetId] : []);
   const media = [...new Set(assetIds)].map((id) => assetsById.get(id)).filter((asset): asset is GeneratedAsset => Boolean(asset));
