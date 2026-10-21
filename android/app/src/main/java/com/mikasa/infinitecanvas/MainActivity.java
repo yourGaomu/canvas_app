@@ -6,6 +6,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(android.os.Bundle savedInstanceState) {
         registerPlugin(AppLoggerPlugin.class);
+        registerPlugin(CanvasOrientationPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
